@@ -14,6 +14,7 @@ import signal
 import sys
 import shlex
 import shutil
+import tabulate
 import json
 from textwrap import indent
 from socket import gethostname
@@ -265,6 +266,10 @@ class ClientSession(ApplicationSession):
         else:
             places = sorted(self.places.items())
 
+        table = []
+        headers = [ "Place", "Comment" ]
+        if self.args.show_tags:
+            headers.extend(self.args.show_tags)
         for name, place in places:
             if self.args.acquired and place.acquired is None:
                 continue
@@ -277,14 +282,22 @@ class ClientSession(ApplicationSession):
                 if place.aliases:
                     line += f" ({' '.join(place.aliases)})"
 
-                print(f"{line:<40s} {place.comment}")
+                row = [ line, place.comment ]
+                if self.args.show_tags:
+                    row.extend([ place.tags.get(tname) for tname in self.args.show_tags ])
+
+            table.append(row)
+
+        if len(table) > 0:
+            print(tabulate.tabulate(table, headers=headers, tablefmt="fancy_outline"))
 
     def print_who(self):
         """Print acquired places by user"""
-        result = ["User Host Place Changed".split()]
+        headers = ["User", "Host", "Place", "Changed"]
         if self.args.show_exporters:
-            result[0].append("Exporters")
+            headers.append("Exporters")
 
+        result = []
         for name, place in self.places.items():
             if place.acquired is None:
                 continue
@@ -295,14 +308,7 @@ class ClientSession(ApplicationSession):
                 result[-1].append(", ".join(sorted(exporters)))
         result.sort()
 
-        widths = [max(map(len, c)) for c in zip(*result)]
-        layout = []
-        for i, w in enumerate(widths):
-            layout.append("{%i:<%is}" % (i, w))
-        layout = "  ".join(layout)
-
-        for entry in result:
-            print(layout.format(*entry))
+        print(tabulate.tabulate(result, headers=headers, tablefmt="fancy_outline"))
 
     def _match_places(self, pattern):
         """search for substring matches of pattern in place names and aliases
@@ -1484,6 +1490,15 @@ class ExportFormat(enum.Enum):
         return self.value
 
 
+class PrintFormat(enum.Enum):
+    SIMPLE = "simple"
+    PRETTY = "pretty"
+    JSON = "json"
+
+    def __str__(self):
+        return self.value
+
+
 def main():
     basicConfig(
         level=logging.WARNING,
@@ -1552,6 +1567,7 @@ def main():
 
     subparser = subparsers.add_parser("places", aliases=("p",), help="list available places")
     subparser.add_argument("-a", "--acquired", action="store_true")
+    subparser.add_argument("--show-tag", dest='show_tags', action='append', help="Print tag value as column")
     subparser.add_argument("--sort-last-changed", action="store_true", help="sort by last changed date (oldest first)")
     subparser.set_defaults(func=ClientSession.print_places)
 
