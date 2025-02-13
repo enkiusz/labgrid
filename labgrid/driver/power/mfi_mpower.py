@@ -31,7 +31,7 @@ def login(s: requests.Session, base_url: str, credentials: dict) -> None:
     # We need to first fetch the base url to satisfy the Cookie Monster
     s.get(base_url)
 
-    s.post(urljoin(base_url, '/login.cgi'),
+    s.post(urljoin(base_url, '/login.cgi'), allow_redirects=False,
         data=dict(username=credentials['username'], password=credentials['password']))
 
 
